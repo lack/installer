@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -113,6 +114,7 @@ func ValidateInstallConfig(c *types.InstallConfig) field.ErrorList {
 		allErrs = append(allErrs, field.NotSupported(field.NewPath("publish"), c.Publish, validPublishingStrategyValues))
 	}
 	allErrs = append(allErrs, validateCloudCredentialsMode(c.CredentialsMode, field.NewPath("credentialsMode"), c.Platform.Name())...)
+	allErrs = append(allErrs, validateWorkload(c.Workload, field.NewPath("workloadSettings"))...)
 
 	return allErrs
 }
@@ -605,6 +607,31 @@ func validateIPProxy(proxy string, n *types.Networking, fldPath *field.Path) fie
 		if network.Contains(proxyIP) {
 			allErrs = append(allErrs, field.Invalid(fldPath, proxy, "proxy value is part of the service networks"))
 			break
+		}
+	}
+	return allErrs
+}
+
+// validateWorkloadPartition ensures that the given list of workload partitions either empty or:
+//  - The name of the partition must be "management" (for the first release)
+//  - Made of unique names (no duplicates)
+//  - With a valid-looking CPU set description (note: Cannot actually verify against real hardware)
+func validateWorkload(partitions []types.WorkloadPartition, fldPath *field.Path) field.ErrorList {
+	cpusetRegex := "^[0-9]+([-,][0-9]+)*$"
+	partitionNames := map[types.WorkloadPartitionName]bool{}
+	allErrs := field.ErrorList{}
+	for i, p := range partitions {
+		partitionFldPath := fldPath.Index(i)
+		if p.Name != types.ManagementWorkloadPartition {
+			allErrs = append(allErrs, field.NotSupported(partitionFldPath.Child("name"), p.Name, []string{string(types.ManagementWorkloadPartition)}))
+		}
+		if partitionNames[p.Name] {
+			allErrs = append(allErrs, field.Duplicate(partitionFldPath.Child("name"), p.Name))
+		}
+		partitionNames[p.Name] = true
+		match, _ := regexp.MatchString(cpusetRegex, p.CpuIds)
+		if !match {
+			allErrs = append(allErrs, field.NotSupported(partitionFldPath.Child("cpuIDs"), p.CpuIds, []string{cpusetRegex}))
 		}
 	}
 	return allErrs
