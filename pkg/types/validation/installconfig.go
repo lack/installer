@@ -5,7 +5,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -37,6 +36,7 @@ import (
 	"github.com/openshift/installer/pkg/types/vsphere"
 	vspherevalidation "github.com/openshift/installer/pkg/types/vsphere/validation"
 	"github.com/openshift/installer/pkg/validate"
+	"k8s.io/kubernetes/pkg/kubelet/cm/cpuset"
 )
 
 const (
@@ -617,7 +617,6 @@ func validateIPProxy(proxy string, n *types.Networking, fldPath *field.Path) fie
 //  - Made of unique names (no duplicates)
 //  - With a valid-looking CPU set description (note: Cannot actually verify against real hardware)
 func validateWorkload(partitions []types.WorkloadPartition, fldPath *field.Path) field.ErrorList {
-	cpusetRegex := "^[0-9]+([-,][0-9]+)*$"
 	partitionNames := map[types.WorkloadPartitionName]bool{}
 	allErrs := field.ErrorList{}
 	for i, p := range partitions {
@@ -629,9 +628,11 @@ func validateWorkload(partitions []types.WorkloadPartition, fldPath *field.Path)
 			allErrs = append(allErrs, field.Duplicate(partitionFldPath.Child("name"), p.Name))
 		}
 		partitionNames[p.Name] = true
-		match, _ := regexp.MatchString(cpusetRegex, p.CpuIds)
-		if !match {
-			allErrs = append(allErrs, field.NotSupported(partitionFldPath.Child("cpuIDs"), p.CpuIds, []string{cpusetRegex}))
+		if p.CpuIds == "" {
+			allErrs = append(allErrs, field.Invalid(partitionFldPath.Child("cpuIDs"), p.CpuIds, "cannot be empty"))
+		} else if cpuset, err := cpuset.Parse(p.CpuIds); err != nil || cpuset.IsEmpty() {
+			// Re-check if the parsed cpuset is empty, since the parser may interpret some errors as the empty set.
+			allErrs = append(allErrs, field.Invalid(partitionFldPath.Child("cpuIDs"), p.CpuIds, "could not parse the cpuset"))
 		}
 	}
 	return allErrs

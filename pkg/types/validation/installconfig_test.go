@@ -1263,13 +1263,14 @@ func TestValidateInstallConfig(t *testing.T) {
 				c.Workload[0].CpuIds = ""
 				return c
 			}(),
-			expectedError: `^workloadSettings\[0\].cpuIDs: Unsupported value: "": supported values: .*`,
+			expectedError: `^workloadSettings\[0\].cpuIDs: Invalid value: "": cannot be empty`,
 		},
 	}
 	for _, id := range []string{"0", "0-1", "3,5,7", "3,5-8,11", "2-3,5-6,8-9"} {
 		cases = append(cases, validCpuidTestcase(id))
 	}
-	for _, id := range []string{"nodigits", "-7", "10-", ",2", "4,", "5,,6", "8--10", "2,4,bad", "5,6-,8", "2-3,-6,8-9"} {
+	// TODO: "0,5-2,7" should also be invalid, but the cpuset parser today interprets it as "0,7"
+	for _, id := range []string{"nodigits", "-7", "10-", ",2", "4,", "5,,6", "8--10", "2,4,bad", "5,6-,8", "2-3,-6,8-9", "10-6"} {
 		cases = append(cases, invalidCpuidTestcase(id))
 	}
 	for _, tc := range cases {
@@ -1306,5 +1307,5 @@ func validCpuidTestcase(id string) testCase {
 
 func invalidCpuidTestcase(id string) testCase {
 	return cpuidTestcase(id,
-		fmt.Sprintf(`^workloadSettings\[0\].cpuIDs: Unsupported value: "%s": supported values: .*`, id))
+		fmt.Sprintf(`^workloadSettings\[0\].cpuIDs: Invalid value: "%s": could not parse the cpuset`, id))
 }
