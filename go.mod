@@ -15,7 +15,7 @@ require (
 	github.com/antchfx/xpath v1.1.2 // indirect
 	github.com/apparentlymart/go-cidr v1.1.0
 	github.com/awalterschulze/gographviz v0.0.0-20190522210029-fa59802746ab
-	github.com/aws/aws-sdk-go v1.35.20
+	github.com/aws/aws-sdk-go v1.35.24
 	github.com/btubbs/datetime v0.1.1 // indirect
 	github.com/c4milo/gotoolkit v0.0.0-20190525173301-67483a18c17a // indirect
 	github.com/clarketm/json v1.14.1
@@ -100,12 +100,14 @@ require (
 	gopkg.in/AlecAivazis/survey.v1 v1.8.9-0.20200217094205-6773bdf39b7f
 	gopkg.in/ini.v1 v1.61.0
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.20.1
+	k8s.io/api v0.20.5
 	k8s.io/apiextensions-apiserver v0.20.1
-	k8s.io/apimachinery v0.20.1
+	k8s.io/apimachinery v0.20.5
 	k8s.io/client-go v12.0.0+incompatible
 	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.4.0
+	k8s.io/kubelet v0.20.0 // indirect
+	k8s.io/kubernetes v1.20.5
 	k8s.io/utils v0.0.0-20201110183641-67b214c5f920
 	kubevirt.io/client-go v0.29.0
 	kubevirt.io/containerized-data-importer v1.10.9
@@ -133,7 +135,6 @@ replace (
 	github.com/terraform-providers/terraform-provider-aws => github.com/openshift/terraform-provider-aws v1.60.1-0.20200630224953-76d1fb4e5699 // Pin to openshift fork with tag v2.67.0-openshift
 	github.com/terraform-providers/terraform-provider-azurerm => github.com/openshift/terraform-provider-azurerm v1.40.1-0.20200707062554-97ea089cc12a // release-2.17.0 branch
 	github.com/terraform-providers/terraform-provider-ignition/v2 => github.com/community-terraform-providers/terraform-provider-ignition/v2 v2.1.0
-	k8s.io/client-go => k8s.io/client-go v0.20.0
 	kubevirt.io/client-go => kubevirt.io/client-go v0.29.0
 	sigs.k8s.io/cluster-api-provider-aws => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20210121023454-5ffc5f422a80
 	sigs.k8s.io/cluster-api-provider-azure => github.com/openshift/cluster-api-provider-azure v0.1.0-alpha.3.0.20201016155852-4090a6970205
@@ -156,4 +157,32 @@ replace (
 	google.golang.org/api => google.golang.org/api v0.25.0
 	google.golang.org/genproto => google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013
 	google.golang.org/grpc => google.golang.org/grpc v1.29.1
+)
+
+// This section is required to import k8s.io/kubelet
+replace (
+	k8s.io/api => k8s.io/api v0.20.0
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.20.0
+	k8s.io/apimachinery => k8s.io/apimachinery v0.20.0
+	k8s.io/apiserver => k8s.io/apiserver v0.20.0
+	k8s.io/cli-runtime => k8s.io/cli-runtime v0.20.0
+	k8s.io/client-go => k8s.io/client-go v0.20.0
+	k8s.io/cloud-provider => k8s.io/cloud-provider v0.20.0
+	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.20.0
+	k8s.io/code-generator => k8s.io/code-generator v0.20.0
+	k8s.io/component-base => k8s.io/component-base v0.20.0
+	k8s.io/component-helpers => k8s.io/component-helpers v0.20.0
+	k8s.io/controller-manager => k8s.io/controller-manager v0.20.0
+	k8s.io/cri-api => k8s.io/cri-api v0.20.0
+	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.20.0
+	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.20.0
+	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.20.0
+	k8s.io/kube-proxy => k8s.io/kube-proxy v0.20.0
+	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.20.0
+	k8s.io/kubectl => k8s.io/kubectl v0.20.0
+	k8s.io/kubelet => k8s.io/kubelet v0.20.0
+	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.20.0
+	k8s.io/metrics => k8s.io/metrics v0.20.0
+	k8s.io/mount-utils => k8s.io/mount-utils v0.20.0
+	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.20.0
 )
