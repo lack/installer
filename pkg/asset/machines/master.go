@@ -402,6 +402,13 @@ func (m *Master) Generate(dependencies asset.Parents) error {
 		}
 		machineConfigs = append(machineConfigs, ignFIPS)
 	}
+	if len(ic.WorkloadSettings) > 0 {
+		ignWorkload, err := machineconfig.ForWorkloadPartitions(ic.WorkloadSettings, "master")
+		if err != nil {
+			return errors.Wrap(err, "failed to create ignition for workload partitioning for master machines")
+		}
+		machineConfigs = append(machineConfigs, ignWorkload)
+	}
 
 	m.MachineConfigFiles, err = machineconfig.Manifests(machineConfigs, "master", directory)
 	if err != nil {
