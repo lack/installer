@@ -223,6 +223,14 @@ func (w *Worker) Generate(dependencies asset.Parents) error {
 			}
 			machineConfigs = append(machineConfigs, ignFIPS)
 		}
+		if len(ic.Workload) > 0 {
+			w := ic.Workload[0]
+			ignWorkload, err := machineconfig.ForWorkloadPartitioning(string(w.Name), w.CpuIds, "worker")
+			if err != nil {
+				return errors.Wrap(err, "failed to create ignition for workload partitioning for worker machines")
+			}
+			machineConfigs = append(machineConfigs, ignWorkload)
+		}
 		switch ic.Platform.Name() {
 		case awstypes.Name:
 			subnets := map[string]string{}

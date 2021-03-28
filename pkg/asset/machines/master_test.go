@@ -20,6 +20,7 @@ func TestMasterGenerateMachineConfigs(t *testing.T) {
 		name                  string
 		key                   string
 		hyperthreading        types.HyperthreadingMode
+		workloadCpuset        string
 		expectedMachineConfig []string
 	}{
 		{
@@ -135,39 +136,84 @@ spec:
   osImageURL: ""
 `},
 		},
+		{
+			name:           "no key hyperthreading enabled",
+			hyperthreading: types.HyperthreadingEnabled,
+			workloadCpuset: "3,4,5",
+			expectedMachineConfig: []string{`apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  creationTimestamp: null
+  labels:
+    machineconfiguration.openshift.io/role: master
+  name: 02-master-workload-partitioning
+spec:
+  config:
+    ignition:
+      version: 3.2.0
+    storage:
+      files:
+      - contents:
+          source: data:text/plain;charset=utf-8;base64,W2NyaW8ucnVudGltZS53b3JrbG9hZHMubWFuYWdlbWVudF0KbGFiZWwgICAgICAgICAgICAgPSAid29ya2xvYWQub3BlbnNoaWZ0LmlvL21hbmFnZW1lbnQvY3B1Igphbm5vdGF0aW9uX3ByZWZpeCA9ICJpby5vcGVuc2hpZnQud29ya2xvYWQubWFuYWdlbWVudCIKcmVzb3VyY2VzICAgICAgICAgPSB7ICJjcHUiID0gIiIsICJjcHVzZXQiID0gIjMsNCw1IiwgfQoK
+        mode: 420
+        overwrite: true
+        path: /etc/crio/crio.conf.d/01-management-workload
+        user:
+          name: root
+      - contents:
+          source: data:text/plain;charset=utf-8;base64,ewogICJtYW5hZ2VtZW50IjogewogICAgImNwdXNldCI6ICIzLDQsNSIKICB9Cn0=
+        mode: 420
+        overwrite: true
+        path: /etc/kubernetes/workload-pinning
+        user:
+          name: root
+  extensions: null
+  fips: false
+  kernelArguments: null
+  kernelType: ""
+  osImageURL: ""
+`},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			parents := asset.Parents{}
+			installConfig := installconfig.InstallConfig{
+				Config: &types.InstallConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-cluster",
+					},
+					SSHKey:     tc.key,
+					BaseDomain: "test-domain",
+					Platform: types.Platform{
+						AWS: &awstypes.Platform{
+							Region: "us-east-1",
+						},
+					},
+					ControlPlane: &types.MachinePool{
+						Hyperthreading: tc.hyperthreading,
+						Replicas:       pointer.Int64Ptr(1),
+						Platform: types.MachinePoolPlatform{
+							AWS: &awstypes.MachinePool{
+								Zones:        []string{"us-east-1a"},
+								InstanceType: "m5.xlarge",
+							},
+						},
+					},
+				},
+			}
+			if tc.workloadCpuset != "" {
+				installConfig.Config.Workload = append(installConfig.Config.Workload, types.WorkloadPartition{
+					Name:   types.ManagementWorkloadPartition,
+					CpuIds: tc.workloadCpuset,
+				})
+			}
 			parents.Add(
 				&installconfig.ClusterID{
 					UUID:    "test-uuid",
 					InfraID: "test-infra-id",
 				},
-				&installconfig.InstallConfig{
-					Config: &types.InstallConfig{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "test-cluster",
-						},
-						SSHKey:     tc.key,
-						BaseDomain: "test-domain",
-						Platform: types.Platform{
-							AWS: &awstypes.Platform{
-								Region: "us-east-1",
-							},
-						},
-						ControlPlane: &types.MachinePool{
-							Hyperthreading: tc.hyperthreading,
-							Replicas:       pointer.Int64Ptr(1),
-							Platform: types.MachinePoolPlatform{
-								AWS: &awstypes.MachinePool{
-									Zones:        []string{"us-east-1a"},
-									InstanceType: "m5.xlarge",
-								},
-							},
-						},
-					},
-				},
+				&installConfig,
 				(*rhcos.Image)(pointer.StringPtr("test-image")),
 				&machine.Master{
 					File: &asset.File{

@@ -20,6 +20,7 @@ func TestWorkerGenerate(t *testing.T) {
 		name                  string
 		key                   string
 		hyperthreading        types.HyperthreadingMode
+		workloadCpuset        string
 		expectedMachineConfig []string
 	}{
 		{
@@ -135,41 +136,85 @@ spec:
   osImageURL: ""
 `},
 		},
+		{
+			name:           "workload partitioning enabled",
+			workloadCpuset: "3,4,5",
+			expectedMachineConfig: []string{`apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  creationTimestamp: null
+  labels:
+    machineconfiguration.openshift.io/role: worker
+  name: 02-worker-workload-partitioning
+spec:
+  config:
+    ignition:
+      version: 3.2.0
+    storage:
+      files:
+      - contents:
+          source: data:text/plain;charset=utf-8;base64,W2NyaW8ucnVudGltZS53b3JrbG9hZHMubWFuYWdlbWVudF0KbGFiZWwgICAgICAgICAgICAgPSAid29ya2xvYWQub3BlbnNoaWZ0LmlvL21hbmFnZW1lbnQvY3B1Igphbm5vdGF0aW9uX3ByZWZpeCA9ICJpby5vcGVuc2hpZnQud29ya2xvYWQubWFuYWdlbWVudCIKcmVzb3VyY2VzICAgICAgICAgPSB7ICJjcHUiID0gIiIsICJjcHVzZXQiID0gIjMsNCw1IiwgfQoK
+        mode: 420
+        overwrite: true
+        path: /etc/crio/crio.conf.d/01-management-workload
+        user:
+          name: root
+      - contents:
+          source: data:text/plain;charset=utf-8;base64,ewogICJtYW5hZ2VtZW50IjogewogICAgImNwdXNldCI6ICIzLDQsNSIKICB9Cn0=
+        mode: 420
+        overwrite: true
+        path: /etc/kubernetes/workload-pinning
+        user:
+          name: root
+  extensions: null
+  fips: false
+  kernelArguments: null
+  kernelType: ""
+  osImageURL: ""
+`},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			parents := asset.Parents{}
-			parents.Add(
-				&installconfig.ClusterID{
-					UUID:    "test-uuid",
-					InfraID: "test-infra-id",
-				},
-				&installconfig.InstallConfig{
-					Config: &types.InstallConfig{
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "test-cluster",
+			installConfig := installconfig.InstallConfig{
+				Config: &types.InstallConfig{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-cluster",
+					},
+					SSHKey:     tc.key,
+					BaseDomain: "test-domain",
+					Platform: types.Platform{
+						AWS: &awstypes.Platform{
+							Region: "us-east-1",
 						},
-						SSHKey:     tc.key,
-						BaseDomain: "test-domain",
-						Platform: types.Platform{
-							AWS: &awstypes.Platform{
-								Region: "us-east-1",
-							},
-						},
-						Compute: []types.MachinePool{
-							{
-								Replicas:       pointer.Int64Ptr(1),
-								Hyperthreading: tc.hyperthreading,
-								Platform: types.MachinePoolPlatform{
-									AWS: &awstypes.MachinePool{
-										Zones:        []string{"us-east-1a"},
-										InstanceType: "m5.large",
-									},
+					},
+					Compute: []types.MachinePool{
+						{
+							Replicas:       pointer.Int64Ptr(1),
+							Hyperthreading: tc.hyperthreading,
+							Platform: types.MachinePoolPlatform{
+								AWS: &awstypes.MachinePool{
+									Zones:        []string{"us-east-1a"},
+									InstanceType: "m5.large",
 								},
 							},
 						},
 					},
 				},
+			}
+			if tc.workloadCpuset != "" {
+				installConfig.Config.Workload = append(installConfig.Config.Workload, types.WorkloadPartition{
+					Name:   types.ManagementWorkloadPartition,
+					CpuIds: tc.workloadCpuset,
+				})
+			}
+			parents.Add(
+				&installconfig.ClusterID{
+					UUID:    "test-uuid",
+					InfraID: "test-infra-id",
+				},
+				&installConfig,
 				(*rhcos.Image)(pointer.StringPtr("test-image")),
 				&machine.Worker{
 					File: &asset.File{
@@ -195,6 +240,62 @@ spec:
 }
 
 func TestComputeIsNotModified(t *testing.T) {
+	parents := asset.Parents{}
+	installConfig := installconfig.InstallConfig{
+		Config: &types.InstallConfig{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-cluster",
+			},
+			SSHKey:     "ssh-rsa: dummy-key",
+			BaseDomain: "test-domain",
+			Platform: types.Platform{
+				AWS: &awstypes.Platform{
+					Region: "us-east-1",
+					DefaultMachinePlatform: &awstypes.MachinePool{
+						InstanceType: "TEST_INSTANCE_TYPE",
+					},
+				},
+			},
+			Compute: []types.MachinePool{
+				{
+					Replicas:       pointer.Int64Ptr(1),
+					Hyperthreading: types.HyperthreadingDisabled,
+					Platform: types.MachinePoolPlatform{
+						AWS: &awstypes.MachinePool{
+							Zones:        []string{"us-east-1a"},
+							InstanceType: "",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	parents.Add(
+		&installconfig.ClusterID{
+			UUID:    "test-uuid",
+			InfraID: "test-infra-id",
+		},
+		&installConfig,
+		(*rhcos.Image)(pointer.StringPtr("test-image")),
+		&machine.Worker{
+			File: &asset.File{
+				Filename: "worker-ignition",
+				Data:     []byte("test-ignition"),
+			},
+		},
+	)
+	worker := &Worker{}
+	if err := worker.Generate(parents); err != nil {
+		t.Fatalf("failed to generate master machines: %v", err)
+	}
+
+	if installConfig.Config.Compute[0].Platform.AWS.Type != "" {
+		t.Fatalf("compute in the install config has been modified")
+	}
+}
+
+func TestWorkloadPartitioning(t *testing.T) {
 	parents := asset.Parents{}
 	installConfig := installconfig.InstallConfig{
 		Config: &types.InstallConfig{
