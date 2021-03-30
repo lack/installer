@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/BurntSushi/toml"
 	igntypes "github.com/coreos/ignition/v2/config/v3_2/types"
 	mcfgv1 "github.com/openshift/machine-config-operator/pkg/apis/machineconfiguration.openshift.io/v1"
 	"github.com/pkg/errors"
-	ini "gopkg.in/ini.v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift/installer/pkg/asset/ignition"
@@ -23,29 +23,25 @@ import (
 // annotation_prefix = "io.openshift.workload.management"
 // resources = { "cpu" = "", "cpuset" = "0-1", }
 func CrioWorkloadDropinContents(partitions []types.WorkloadPartition) (string, error) {
-	crioIni := ini.Empty()
+	crioWorkloadDropin := map[string]crioWorkloadCfg{}
 	for _, p := range partitions {
-		section := crioIni.Section(fmt.Sprintf("crio.runtime.workloads.%s", p.Name))
-		err := section.ReflectFrom(&crioWorkloadCfg{
-			Label:            fmt.Sprintf(`"%s.workload.openshift.io/cores"`, p.Name),
-			AnnotationPrefix: fmt.Sprintf(`"io.openshift.workload.%s"`, p.Name),
+		crioWorkloadDropin[fmt.Sprintf("crio.runtime.workloads.%s", p.Name)] = crioWorkloadCfg{
+			Label:            fmt.Sprintf("%s.workload.openshift.io/cores", p.Name),
+			AnnotationPrefix: fmt.Sprintf("io.openshift.workload.%s", p.Name),
 			Resources:        fmt.Sprintf(`{ "cpu" = "", "cpuset" = "%s", }`, p.CPUIds),
-		})
-		if err != nil {
-			return "", errors.Wrapf(err, "Could not reflect %q structure to INI", p.Name)
 		}
 	}
-	crioBuf := new(bytes.Buffer)
-	if _, err := crioIni.WriteTo(crioBuf); err != nil {
-		return "", errors.Wrap(err, "Could not write INI to buffer")
+	buf := new(bytes.Buffer)
+	if err := toml.NewEncoder(buf).Encode(crioWorkloadDropin); err != nil {
+		return "", errors.Wrap(err, "Could not encode TOML")
 	}
-	return crioBuf.String(), nil
+	return buf.String(), nil
 }
 
 type crioWorkloadCfg struct {
-	Label            string `ini:"label"`
-	AnnotationPrefix string `ini:"annotation_prefix"`
-	Resources        string `ini:"resources"`
+	Label            string `toml:"label"`
+	AnnotationPrefix string `toml:"annotation_prefix"`
+	Resources        string `toml:"resources"`
 }
 
 // KubeletWorkloadDropinContents generates te content expected by Kubelet for workload partitioning

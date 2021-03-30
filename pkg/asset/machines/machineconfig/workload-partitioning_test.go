@@ -23,11 +23,10 @@ func TestWorkloadPartitioning(t *testing.T) {
 	cpuset := partitions[0].CPUIds
 	role := "role"
 
-	expectedCrioCfg := fmt.Sprintf(`[crio.runtime.workloads.%[1]s]
-label             = "%[1]s.workload.openshift.io/cores"
-annotation_prefix = "io.openshift.workload.%[1]s"
-resources         = { "cpu" = "", "cpuset" = "%s", }
-
+	expectedCrioCfg := fmt.Sprintf(`["crio.runtime.workloads.%[1]s"]
+  label = "%[1]s.workload.openshift.io/cores"
+  annotation_prefix = "io.openshift.workload.%[1]s"
+  resources = "{ \"cpu\" = \"\", \"cpuset\" = \"%s\", }"
 `, name, cpuset)
 
 	expectedKubeletCfg := fmt.Sprintf(`{
