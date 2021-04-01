@@ -203,23 +203,12 @@ func validOvirtPlatform() *ovirt.Platform {
 	}
 }
 
-func validWorkloadSettings() *types.InstallConfig {
-	c := validInstallConfig()
-	c.WorkloadSettings = append(c.WorkloadSettings, types.WorkloadPartition{
-		Name:   types.ManagementWorkloadPartition,
-		CPUIds: "0-1",
-	})
-	return c
-}
-
-type testCase struct {
-	name          string
-	installConfig *types.InstallConfig
-	expectedError string
-}
-
 func TestValidateInstallConfig(t *testing.T) {
-	cases := []testCase{
+	cases := []struct {
+		name          string
+		installConfig *types.InstallConfig
+		expectedError string
+	}{
 		{
 			name:          "minimal",
 			installConfig: validInstallConfig(),
@@ -1219,58 +1208,6 @@ func TestValidateInstallConfig(t *testing.T) {
 			}(),
 			expectedError: `\Q[networking.machineNewtork[0]: Invalid value: "172.17.64.0/18": overlaps with default Docker Bridge subnet, platform: Invalid value: "libvirt": must specify one of the platforms (\E.*\Q)]\E`,
 		},
-		{
-			name: "with valid workloadSettings",
-			installConfig: func() *types.InstallConfig {
-				return validWorkloadSettings()
-			}(),
-			expectedError: ``,
-		},
-		{
-			name: "with invalid workloadSettings.name",
-			installConfig: func() *types.InstallConfig {
-				c := validWorkloadSettings()
-				c.WorkloadSettings[0].Name = "badvalue"
-				return c
-			}(),
-			expectedError: `^workloadSettings\[0\].name: Unsupported value: "badvalue": supported values: .*`,
-		},
-		{
-			name: "with empty workloadSettings.name",
-			installConfig: func() *types.InstallConfig {
-				c := validWorkloadSettings()
-				c.WorkloadSettings[0].Name = ""
-				return c
-			}(),
-			expectedError: `^workloadSettings\[0\].name: Unsupported value: "": supported values: .*`,
-		},
-		{
-			name: "with duplicate workloadSettings.name",
-			installConfig: func() *types.InstallConfig {
-				c := validWorkloadSettings()
-				c.WorkloadSettings = append(c.WorkloadSettings, types.WorkloadPartition{
-					Name:   types.ManagementWorkloadPartition,
-					CPUIds: "2-3",
-				})
-				return c
-			}(),
-			expectedError: `^workloadSettings\[1\].name: Duplicate value: "management"$`,
-		},
-		{
-			name: "with empty workloadSettings.cpuIDs",
-			installConfig: func() *types.InstallConfig {
-				c := validWorkloadSettings()
-				c.WorkloadSettings[0].CPUIds = ""
-				return c
-			}(),
-			expectedError: `^workloadSettings\[0\].cpuIDs: Invalid value: "": cannot be empty`,
-		},
-	}
-	for _, id := range []string{"0", "0-1", "3,5,7", "3,5-8,11", "2-3,5-6,8-9"} {
-		cases = append(cases, validCpuidTestcase(id))
-	}
-	for _, id := range []string{"nodigits", "-7", "10-", ",2", "4,", "5,,6", "8--10", "2,4,bad", "5,6-,8", "2-3,-6,8-9", "10-6", "0,5-2,7"} {
-		cases = append(cases, invalidCpuidTestcase(id))
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1282,29 +1219,4 @@ func TestValidateInstallConfig(t *testing.T) {
 			}
 		})
 	}
-}
-
-func cpuidTestcase(id, expectedError string) testCase {
-	testType := "valid"
-	if expectedError != "" {
-		testType = "invalid"
-	}
-	return testCase{
-		name: fmt.Sprintf("with %s workloadSettings.cpuIDs (%s)", testType, id),
-		installConfig: func() *types.InstallConfig {
-			c := validWorkloadSettings()
-			c.WorkloadSettings[0].CPUIds = id
-			return c
-		}(),
-		expectedError: expectedError,
-	}
-}
-
-func validCpuidTestcase(id string) testCase {
-	return cpuidTestcase(id, "")
-}
-
-func invalidCpuidTestcase(id string) testCase {
-	return cpuidTestcase(id,
-		fmt.Sprintf(`^workloadSettings\[0\].cpuIDs: Invalid value: "%s": could not parse the cpuset`, id))
 }

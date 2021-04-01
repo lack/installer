@@ -3,6 +3,7 @@ package validation
 import (
 	"fmt"
 
+	"github.com/cri-o/cpuset"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"github.com/openshift/installer/pkg/types"
@@ -70,6 +71,7 @@ func ValidateMachinePool(platform *types.Platform, p *types.MachinePool, fldPath
 		allErrs = append(allErrs, field.NotSupported(fldPath.Child("architecture"), p.Architecture, validArchitectureValues))
 	}
 	allErrs = append(allErrs, validateMachinePoolPlatform(platform, &p.Platform, p, fldPath.Child("platform"))...)
+	allErrs = append(allErrs, validateWorkload(p.Workload, fldPath.Child("workload"))...)
 	return allErrs
 }
 
@@ -129,5 +131,35 @@ func validateAzureMachinePool(p *types.MachinePoolPlatform, pool *types.MachineP
 	allErrs = append(allErrs, azurevalidation.ValidateMachinePool(p.Azure, f)...)
 	allErrs = append(allErrs, azurevalidation.ValidateMasterDiskType(pool, f)...)
 
+	return allErrs
+}
+
+// validateWorkloadPartition ensures that the given list of workload partitions either empty or:
+//  - The name of the partition must be "management" (for the first release)
+//  - Made of unique names (no duplicates)
+//  - With a valid-looking CPU set description (note: Cannot actually verify against real hardware)
+func validateWorkload(workload *types.Workload, f *field.Path) field.ErrorList {
+	if workload == nil {
+		return field.ErrorList{}
+	}
+	pf := f.Child("partitions")
+	partitionNames := map[types.WorkloadPartitionName]bool{}
+	allErrs := field.ErrorList{}
+	for i, p := range workload.Partitions {
+		pfi := pf.Index(i)
+		if p.Name != types.ManagementWorkloadPartition {
+			allErrs = append(allErrs, field.NotSupported(pfi.Child("name"), p.Name, []string{string(types.ManagementWorkloadPartition)}))
+		}
+		if partitionNames[p.Name] {
+			allErrs = append(allErrs, field.Duplicate(pfi.Child("name"), p.Name))
+		}
+		partitionNames[p.Name] = true
+		if p.CPUIds == "" {
+			allErrs = append(allErrs, field.Invalid(pfi.Child("cpuIDs"), p.CPUIds, "cannot be empty"))
+		} else if cpuset, err := cpuset.Parse(p.CPUIds); err != nil || cpuset.IsEmpty() {
+			// Re-check if the parsed cpuset is empty, since the parser may interpret some errors as the empty set.
+			allErrs = append(allErrs, field.Invalid(pfi.Child("cpuIDs"), p.CPUIds, "could not parse the cpuset"))
+		}
+	}
 	return allErrs
 }

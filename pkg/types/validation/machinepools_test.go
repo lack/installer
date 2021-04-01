@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,13 +25,26 @@ func validMachinePool(name string) *types.MachinePool {
 	}
 }
 
+func validWorkloadPartitions() *types.MachinePool {
+	p := validMachinePool("test-name")
+	p.Workload = &types.Workload{
+		Partitions: []types.WorkloadPartition{{
+			Name:   types.ManagementWorkloadPartition,
+			CPUIds: "0-1",
+		}},
+	}
+	return p
+}
+
+type machinePoolTestCase struct {
+	name     string
+	platform *types.Platform
+	pool     *types.MachinePool
+	valid    bool
+}
+
 func TestValidateMachinePool(t *testing.T) {
-	cases := []struct {
-		name     string
-		platform *types.Platform
-		pool     *types.MachinePool
-		valid    bool
-	}{
+	cases := []machinePoolTestCase{
 		{
 			name:     "minimal",
 			platform: &types.Platform{AWS: &aws.Platform{Region: "us-east-1"}},
@@ -188,6 +202,71 @@ func TestValidateMachinePool(t *testing.T) {
 			}(),
 			valid: false,
 		},
+		{
+			name:     "with valid workload partitions",
+			platform: &types.Platform{AWS: &aws.Platform{Region: "us-east-1"}},
+			pool:     validWorkloadPartitions(),
+			valid:    true,
+		},
+		{
+			name:     "with empty workload partitions",
+			platform: &types.Platform{AWS: &aws.Platform{Region: "us-east-1"}},
+			pool: func() *types.MachinePool {
+				p := validWorkloadPartitions()
+				p.Workload.Partitions = []types.WorkloadPartition{}
+				return p
+			}(),
+			valid: true,
+		},
+		{
+			name:     "with invalid workload.partitions.name",
+			platform: &types.Platform{AWS: &aws.Platform{Region: "us-east-1"}},
+			pool: func() *types.MachinePool {
+				p := validWorkloadPartitions()
+				p.Workload.Partitions[0].Name = "badvalue"
+				return p
+			}(),
+			valid: false,
+		},
+		{
+			name:     "with invalid workload.partitions.name",
+			platform: &types.Platform{AWS: &aws.Platform{Region: "us-east-1"}},
+			pool: func() *types.MachinePool {
+				p := validWorkloadPartitions()
+				p.Workload.Partitions[0].Name = ""
+				return p
+			}(),
+			valid: false,
+		},
+		{
+			name:     "with duplicate workload.partitions.name",
+			platform: &types.Platform{AWS: &aws.Platform{Region: "us-east-1"}},
+			pool: func() *types.MachinePool {
+				p := validWorkloadPartitions()
+				p.Workload.Partitions = append(p.Workload.Partitions, types.WorkloadPartition{
+					Name:   types.ManagementWorkloadPartition,
+					CPUIds: "2-3",
+				})
+				return p
+			}(),
+			valid: false,
+		},
+		{
+			name:     "with empty workload.partitions.cpuIDs",
+			platform: &types.Platform{AWS: &aws.Platform{Region: "us-east-1"}},
+			pool: func() *types.MachinePool {
+				p := validWorkloadPartitions()
+				p.Workload.Partitions[0].CPUIds = ""
+				return p
+			}(),
+			valid: false,
+		},
+	}
+	for _, id := range []string{"0", "0-1", "3,5,7", "3,5-8,11", "2-3,5-6,8-9"} {
+		cases = append(cases, cpuidTestcase(id, true))
+	}
+	for _, id := range []string{"nodigits", "-7", "10-", ",2", "4,", "5,,6", "8--10", "2,4,bad", "5,6-,8", "2-3,-6,8-9", "10-6", "0,5-2,7"} {
+		cases = append(cases, cpuidTestcase(id, false))
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -198,5 +277,22 @@ func TestValidateMachinePool(t *testing.T) {
 				assert.Error(t, err)
 			}
 		})
+	}
+}
+
+func cpuidTestcase(id string, valid bool) machinePoolTestCase {
+	testType := "valid"
+	if !valid {
+		testType = "invalid"
+	}
+	return machinePoolTestCase{
+		name:     fmt.Sprintf("with %s workload.partitions.cpuIDs (%s)", testType, id),
+		platform: &types.Platform{AWS: &aws.Platform{Region: "us-east-1"}},
+		pool: func() *types.MachinePool {
+			p := validWorkloadPartitions()
+			p.Workload.Partitions[0].CPUIds = id
+			return p
+		}(),
+		valid: valid,
 	}
 }
