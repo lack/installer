@@ -18,18 +18,19 @@ import (
 	awstypes "github.com/openshift/installer/pkg/types/aws"
 )
 
-func workloadPartitionForCpuset(cpuset string) []types.WorkloadPartition {
-	return []types.WorkloadPartition{
-		{
-			Name:   types.ManagementWorkloadPartition,
-			CPUIds: cpuset,
-		},
-	}
+func workloadPartitionForCpuset(cpuset string) *types.Workload {
+	return &types.Workload{
+		Partitions: []types.WorkloadPartition{
+			{
+				Name:   types.ManagementWorkloadPartition,
+				CPUIds: cpuset,
+			},
+		}}
 }
 
-func expectedMachineConfigForWorkloadPartitioning(role string, partitions []types.WorkloadPartition) string {
-	expectedCrioCfg, _ := machineconfig.CrioWorkloadDropinContents(partitions)
-	expectedKubeletCfg, _ := machineconfig.KubeletWorkloadDropinContents(partitions)
+func expectedMachineConfigForWorkloadPartitioning(role string, workload *types.Workload) string {
+	expectedCrioCfg, _ := machineconfig.CrioWorkloadDropinContents(workload.Partitions)
+	expectedKubeletCfg, _ := machineconfig.KubeletWorkloadDropinContents(workload.Partitions)
 	return fmt.Sprintf(`apiVersion: machineconfiguration.openshift.io/v1
 kind: MachineConfig
 metadata:
@@ -70,7 +71,7 @@ func TestMasterGenerateMachineConfigs(t *testing.T) {
 		name                  string
 		key                   string
 		hyperthreading        types.HyperthreadingMode
-		workloadSettings      []types.WorkloadPartition
+		workload              *types.Workload
 		expectedMachineConfig []string
 	}{
 		{
@@ -188,7 +189,7 @@ spec:
 		},
 		{
 			name:                  "workload partitioning enabled",
-			workloadSettings:      workloadPartitionForCpuset("3,4,5"),
+			workload:              workloadPartitionForCpuset("3,4,5"),
 			expectedMachineConfig: []string{expectedMachineConfigForWorkloadPartitioning("master", workloadPartitionForCpuset("3,4,5"))},
 		},
 	}
@@ -221,8 +222,8 @@ spec:
 									InstanceType: "m5.xlarge",
 								},
 							},
+							Workload: tc.workload,
 						},
-						WorkloadSettings: tc.workloadSettings,
 					},
 				},
 				(*rhcos.Image)(pointer.StringPtr("test-image")),

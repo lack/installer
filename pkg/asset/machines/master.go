@@ -402,8 +402,8 @@ func (m *Master) Generate(dependencies asset.Parents) error {
 		}
 		machineConfigs = append(machineConfigs, ignFIPS)
 	}
-	if len(ic.WorkloadSettings) > 0 {
-		ignWorkload, err := machineconfig.ForWorkloadPartitions(ic.WorkloadSettings, "master")
+	if pool.Workload != nil && len(pool.Workload.Partitions) > 0 {
+		ignWorkload, err := machineconfig.ForWorkloadPartitions(pool.Workload.Partitions, "master")
 		if err != nil {
 			return errors.Wrap(err, "failed to create ignition for workload partitioning for master machines")
 		}

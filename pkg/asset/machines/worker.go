@@ -223,8 +223,8 @@ func (w *Worker) Generate(dependencies asset.Parents) error {
 			}
 			machineConfigs = append(machineConfigs, ignFIPS)
 		}
-		if len(ic.WorkloadSettings) > 0 {
-			ignWorkload, err := machineconfig.ForWorkloadPartitions(ic.WorkloadSettings, "worker")
+		if pool.Workload != nil && len(pool.Workload.Partitions) > 0 {
+			ignWorkload, err := machineconfig.ForWorkloadPartitions(pool.Workload.Partitions, "worker")
 			if err != nil {
 				return errors.Wrapf(err, "failed to create ignition for workload partitioning for worker machines")
 			}

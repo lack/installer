@@ -20,7 +20,7 @@ func TestWorkerGenerate(t *testing.T) {
 		name                  string
 		key                   string
 		hyperthreading        types.HyperthreadingMode
-		workloadSettings      []types.WorkloadPartition
+		workload              *types.Workload
 		expectedMachineConfig []string
 	}{
 		{
@@ -138,7 +138,7 @@ spec:
 		},
 		{
 			name:                  "workload partitioning enabled",
-			workloadSettings:      workloadPartitionForCpuset("3,4,5"),
+			workload:              workloadPartitionForCpuset("3,4,5"),
 			expectedMachineConfig: []string{expectedMachineConfigForWorkloadPartitioning("worker", workloadPartitionForCpuset("3,4,5"))},
 		},
 	}
@@ -172,9 +172,9 @@ spec:
 										InstanceType: "m5.large",
 									},
 								},
+								Workload: tc.workload,
 							},
 						},
-						WorkloadSettings: tc.workloadSettings,
 					},
 				},
 				(*rhcos.Image)(pointer.StringPtr("test-image")),
